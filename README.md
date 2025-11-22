@@ -150,19 +150,27 @@ software_modules:
 
 ## Running with Docker
 
-### Local Development
+### Using Docker Compose (Recommended)
 
-Use the provided `run.sh` script to run with different environment files:
+Use the provided `run.sh` script or Docker Compose directly:
 
 ```bash
 # Development mode
 ./run.sh .env.dev
 
+# Production mode
+./run.sh .env.prod
+
 # With custom docker-compose flags
 ./run.sh .env.dev --build --force-recreate
+
+# Or use docker-compose directly
+docker-compose --env-file .env.dev up -d --build
 ```
 
 ### Manual Docker Commands
+
+If you prefer to use Docker directly without Compose:
 
 ```bash
 # Build the image
@@ -174,76 +182,71 @@ docker run -d --env-file .env.dev -p 8080:8080 meshtastic-bot
 
 ## Deployment
 
-### Github
+### Production with Docker Compose
 
-The GitHub Actions CI/CD pipeline requires the following repository secrets to be configured:
+The recommended way to deploy this bot in production is using Docker Compose.
 
-1. **Configure Repository Secrets:**
-   - Go to your GitHub repository
-   - Navigate to Settings → Secrets and variables → Actions
-   - Add the following secrets:
+#### Prerequisites
 
-| Secret Name | Description | How to Get It |
-|-------------|-------------|---------------|
-| `DISCORD_TOKEN` | Discord bot token | See "Get the Bot Token" in Discord Bot Setup section |
-| `FLY_API_TOKEN` | Fly.io API token for deployment | Run `fly auth token` in your terminal |
-| `DISCORD_SERVER` | Discord server ID | See "Get Your Server ID" in Discord Bot Setup section |
+- Docker and Docker Compose installed on your server
+- Discord bot token and GitHub token (see setup sections above)
+- Production environment file configured
 
-These secrets are required for the automated deployment workflow to function correctly.
+#### Production Setup
 
-### Deploying to Fly.io
-
-This project includes automated deployment scripts for Fly.io.
-
-#### First-Time Setup
-
-1. **Install flyctl:**
+1. **Create production environment file:**
    ```bash
-   # macOS
-   brew install flyctl
-
-   # Linux/WSL
-   curl -L https://fly.io/install.sh | sh
+   cp .env.example .env.prod
    ```
 
-2. **Login to Fly.io:**
-   ```bash
-   fly auth login
+2. **Edit `.env.prod` with your production credentials:**
+   ```env
+   DISCORD_TOKEN=your_discord_bot_token
+   GITHUB_TOKEN=your_github_personal_access_token
+   DISCORD_SERVER_ID=your_server_id
+   CONFIG_PATH=config.yaml
+   FAQ_PATH=faq.yaml
+   HEALTHCHECK_PORT=8080
+   ENV=prod
    ```
 
-3. **Deploy with secrets:**
+3. **Deploy the bot:**
    ```bash
-   ./deploy.sh 
+   # Build and start in detached mode
+   docker-compose --env-file .env.prod up -d --build
+
+   # View logs
+   docker-compose logs -f
+
+   # Stop the bot
+   docker-compose down
    ```
 
-#### Subsequent Deployments
+#### Production Management
 
 ```bash
-# Regular deployment
-./deploy.sh
-```
+# Check container status
+docker-compose ps
 
-#### Manual Deployment
+# View live logs
+docker-compose logs -f meshtastic-bot
 
-```bash
-# View current status
-fly status
+# Restart the bot
+docker-compose restart
 
-# Deploy manually
-fly deploy
+# Update and redeploy
+git pull
+docker-compose --env-file .env.prod up -d --build
 
-# View logs
-fly logs
-
-# Open the app
-fly open
+# Check health
+curl http://localhost:8080/health
 ```
 
 ### CI/CD Pipeline
 
-The project uses GitHub Actions for continuous integration and deployment.
+The project uses GitHub Actions for continuous integration.
 
-**Workflow:** `.github/workflows/ci.yml`
+**Workflow:** `.github/workflows/ci.yml` and `.github/workflows/pr.yml`
 
 **On Pull Requests & Pushes:**
 - Linting with golangci-lint
@@ -252,10 +255,8 @@ The project uses GitHub Actions for continuous integration and deployment.
 - Docker image build
 
 **On Main Branch Push:**
-- Automatic deployment to Fly.io (after all checks pass)
-
-**Required GitHub Secret:**
-- `FLY_API_TOKEN` - Get your token with `fly auth token`
+- All CI checks (after all checks pass)
+- Docker image validation
 
 ## Running Tests
 
@@ -292,33 +293,33 @@ go test ./... -parallel 4
 
 ```
 meshtastic-bot/
-├── config/              # Configuration loading and validation
-│   ├── config.go        # Main config and URL parsing
-│   ├── env.go           # Environment variable handling
-│   ├── faq.go           # FAQ data structures
-│   └── modal.go         # Modal configuration
-├── discord/             # Discord bot implementation
-│   ├── bot.go           # Bot initialization
-│   ├── commands.go      # Slash command definitions
-│   ├── handlers.go      # Command handlers
-│   └── handlers/        # Individual handler implementations
-│       ├── bug_handler.go
-│       ├── feature_handler.go
-│       ├── faq_handler.go
-│       └── helpers.go
-├── github/              # GitHub API client
-│   └── client.go
-├── .github/             # CI/CD workflows
+├── cmd/
+│   └── meshtastic-bot/
+│       └── main.go          # Application entry point
+├── internal/                # Internal packages
+│   ├── config/              # Configuration loading and validation
+│   │   ├── config.go        # Main config and URL parsing
+│   │   ├── env.go           # Environment variable handling
+│   │   ├── faq.go           # FAQ data structures
+│   │   └── modal.go         # Modal configuration
+│   ├── discord/             # Discord bot implementation
+│   │   ├── bot.go           # Bot initialization
+│   │   ├── commands.go      # Slash command definitions
+│   │   ├── handlers.go      # Command handlers
+│   │   └── handlers/        # Individual handler implementations
+│   ├── github/              # GitHub API client
+│   │   └── client.go
+│   └── routes/              # HTTP routes and health checks
+│       └── routes.go
+├── .github/                 # CI/CD workflows
 │   └── workflows/
-│       └── ci.yml       # Main CI/CD pipeline
-├── config.yaml          # Command configuration
-├── faq.yaml             # FAQ content
-├── run.sh               # Local Docker runner script
-├── deploy.sh            # Fly.io deployment script
-├── Dockerfile           # Multi-stage Docker build
-├── docker-compose.yml   # Docker Compose configuration
-├── fly.toml             # Fly.io configuration
-└── main.go              # Application entry point
+│       ├── ci.yml           # Main CI/CD pipeline
+│       └── pr.yml           # Pull request checks
+├── config.yaml              # Command configuration
+├── faq.yaml                 # FAQ content
+├── run.sh                   # Docker runner script
+├── Dockerfile               # Multi-stage Docker build
+└── docker-compose.yml       # Docker Compose configuration
 ```
 
 ## Environment Variables
@@ -345,7 +346,9 @@ curl http://localhost:8080/health
 ```
 
 This endpoint is used by:
-- Docker health checks
+- Docker Compose health checks
+- Container orchestration monitoring
+- Load balancers and reverse proxies
 
 ## Contributing
 
