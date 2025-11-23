@@ -91,7 +91,7 @@ jobs:
     name: Docker Build
     needs: [build]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

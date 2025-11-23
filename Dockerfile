@@ -1,9 +1,9 @@
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 
-WORKDIR /build
+WORKDIR /app
 
 COPY go.mod go.sum ./
 
@@ -23,7 +23,7 @@ RUN apk --no-cache add ca-certificates wget
 
 WORKDIR /app
 
-COPY --from=builder /build/meshtastic-bot .
+COPY --from=builder /app/meshtastic-bot .
 COPY config.yaml /app/config.yaml
 COPY faq.yaml /app/faq.yaml
 

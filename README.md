@@ -16,6 +16,30 @@ A Discord bot for the Meshtastic community that streamlines bug reporting and fe
 - `/bug <title>`: Submit a bug report (opens an interactive modal)
 - `/feature <title>`: Request a new feature (opens an interactive modal)
 
+## Environment Files
+
+This bot uses environment files to manage configuration and secrets for different environments.
+
+**Recommendation:** Create both `.env.dev` and `.env.prod` files with different Discord servers:
+- **Development (`.env.dev`)**: Use a personal Discord server for testing bot changes and updates without affecting your production users
+- **Production (`.env.prod`)**: Use your main Discord server where real users interact with the bot
+
+### `.env.dev` - Development Secrets
+Use this file when developing or testing the bot locally. Development mode:
+- Provides verbose logging for debugging
+- Registers slash commands instantly to your test server (no global propagation delay)
+- Should point to a personal/test Discord server (use a different `DISCORD_SERVER_ID` & `DISCORD_TOKEN`)
+- Runs using Docker via the included `run.sh` script
+
+### `.env.prod` - Production Secrets
+Use this file when deploying the bot to your production Discord server. Production mode:
+- Uses optimized logging
+- Registers commands globally (may take up to 1 hour to propagate)
+- Points to your main production Discord server
+- Runs using Docker via the included `run.sh` script
+
+Both modes use the same Docker setup - the only difference is which environment file you pass to `run.sh`. More details about using the `run.sh` file are covered in the [Deployment](#deployment) section  
+
 ## Discord Bot Setup
 
 Before running the bot, you need to create a Discord application and configure it properly.
@@ -36,7 +60,7 @@ Before running the bot, you need to create a Discord application and configure i
 
 1. On the "Bot" tab, click "Reset Token" to reveal the bot's token
 2. **Important:** Treat this token like a password. Never share it or commit it to version control
-3. Copy this token for your `.env.dev`or `.env.prod` file
+3. Copy this token for your environment file (`.env.dev` or `.env.prod`)
 
 ### 4. Enable Privileged Gateway Intents
 
@@ -65,7 +89,7 @@ On the "Bot" tab, scroll down to "Privileged Gateway Intents" and enable:
 
 1. Enable Developer Mode in Discord: User Settings → Advanced (has an icon with three dots) → Toggle Developer Mode
 2. Right-click your server icon → "Copy Server ID"
-3. Save this for your `.env.dev` or `.env.prod` file
+3. Copy this for your environment file (`.env.dev` or `.env.prod`)
 
 ## GitHub Personal Access Token Setup
 
@@ -93,15 +117,15 @@ Under "Permissions" → "Repository permissions":
 1. Click "Generate token" at the bottom of the page
 2. **Important:** Copy the token immediately - you won't be able to see it again
 3. Treat this token like a password. Never share it or commit it to version control
-4. Save this token for your `.env.dev` or `.env.prod` file
+4. Copy this token for your environment file (`.env.dev` or `.env.prod`)
 
-## Local Development Setup
+## Local Development
 
 ### Prerequisites
 
-- Go 1.25 or higher
+- Docker installed
 - Discord bot token (see Discord Bot Setup above)
-- A fine grained Github personal access token with the `issues` scope and read & write permission.
+- GitHub personal access token (see GitHub Personal Access Token Setup above)
 
 ### Quick Start
 
@@ -111,30 +135,60 @@ Under "Permissions" → "Repository permissions":
    cd meshtastic-bot
    ```
 
-2. **Create environment file:**
+2. **Create your development environment file:**
    ```bash
    cp .env.example .env.dev
    ```
 
-3. **Edit `.env.dev` with your credentials:**
+3. **Edit `.env.dev` with your development credentials:**
    ```env
    DISCORD_TOKEN=your_discord_bot_token
    GITHUB_TOKEN=your_github_personal_access_token
    DISCORD_SERVER_ID=your_server_id
    CONFIG_PATH=config.yaml
    FAQ_PATH=faq.yaml
-   HEALTHCHECK_PORT=8080
+   HEALTHCHECK_PORT=8081  # Different from production (8080) to avoid port conflicts
+   ENV=dev
    ```
 
-4. **Install dependencies:**
+4. **Run the bot using Docker:**
    ```bash
-   go mod download
+   ./run.sh .env.dev
    ```
 
-5. **Run the bot:**
-   ```bash
-   ./run.sh 
-   ```
+The bot will start in development mode with verbose logging. Slash commands will register instantly to your test server.
+
+### Running Tests
+
+#### Basic Test Commands
+
+```bash
+# Run all tests
+go test ./...
+
+# Run with verbose output
+go test ./... -v
+
+# Run specific package
+go test ./config
+go test ./discord/handlers
+
+# Run specific test
+go test ./config -run TestParseTemplateURL
+```
+
+#### Advanced Testing
+
+```bash
+# Run with coverage
+go tool cover -html=coverage.out
+
+# Run with race detection
+go test ./... -race
+
+# Run tests in parallel
+go test ./... -parallel 4
+```
 
 ## Configuration Files
 
@@ -174,51 +228,14 @@ software_modules:
     url: https://meshtastic.org/docs/software/python
 ```
 
-## Running with Docker
-
-### Using Docker Compose (Recommended)
-
-Use the provided `run.sh` script or Docker Compose directly:
-
-```bash
-# Development mode
-./run.sh .env.dev
-
-# Production mode
-./run.sh .env.prod
-
-# With custom docker-compose flags
-./run.sh .env.dev --build --force-recreate
-
-# Or use docker-compose directly
-docker-compose --env-file .env.dev up -d --build
-```
-
-### Manual Docker Commands
-
-If you prefer to use Docker directly without Compose:
-
-```bash
-# Build the image
-docker build -t meshtastic-bot .
-
-# Run with specific env file
-docker run -d --env-file .env.dev -p 8080:8080 meshtastic-bot
-```
-
 ## Deployment
 
-### Production with Docker Compose
+### Prerequisites
 
-The recommended way to deploy this bot in production is using Docker Compose.
-
-#### Prerequisites
-
-- Docker and Docker Compose installed on your server
+- Docker installed on your server
 - Discord bot token and GitHub token (see setup sections above)
-- Production environment file configured
 
-#### Production Setup
+### Production Setup
 
 1. **Create production environment file:**
    ```bash
@@ -238,31 +255,23 @@ The recommended way to deploy this bot in production is using Docker Compose.
 
 3. **Deploy the bot:**
    ```bash
-   # Build and start in detached mode
-   docker-compose --env-file .env.prod up -d --build
-
-   # View logs
-   docker-compose logs -f
-
-   # Stop the bot
-   docker-compose down
+   ./run.sh .env.prod
    ```
 
-#### Production Management
+The bot will start in production mode. Slash commands will register globally (may take up to 1 hour to propagate).
+
+### Production Management
 
 ```bash
-# Check container status
-docker-compose ps
-
-# View live logs
-docker-compose logs -f meshtastic-bot
+# View logs
+docker logs -f meshtastic-bot
 
 # Restart the bot
-docker-compose restart
+docker restart meshtastic-bot
 
 # Update and redeploy
 git pull
-docker-compose --env-file .env.prod up -d --build
+./run.sh .env.prod
 
 # Check health
 curl http://localhost:8080/health
@@ -275,8 +284,7 @@ The project uses GitHub Actions for continuous integration.
 **Workflow:** `.github/workflows/ci.yml` and `.github/workflows/pr.yml`
 
 **On Pull Requests & Pushes:**
-- Linting with golangci-lint
-- Unit tests with race detection
+- Unit tests 
 - Build verification
 - Docker image build
 
@@ -284,37 +292,6 @@ The project uses GitHub Actions for continuous integration.
 - All CI checks (after all checks pass)
 - Docker image validation
 
-## Running Tests
-
-### Basic Test Commands
-
-```bash
-# Run all tests
-go test ./...
-
-# Run with verbose output
-go test ./... -v
-
-# Run specific package
-go test ./config
-go test ./discord/handlers
-
-# Run specific test
-go test ./config -run TestParseTemplateURL
-```
-
-### Advanced Testing
-
-```bash
-# Run with coverage
-go tool cover -html=coverage.out
-
-# Run with race detection
-go test ./... -race
-
-# Run tests in parallel
-go test ./... -parallel 4
-```
 ## Project Structure
 
 ```
@@ -344,8 +321,7 @@ meshtastic-bot/
 ├── config.yaml              # Command configuration
 ├── faq.yaml                 # FAQ content
 ├── run.sh                   # Docker runner script
-├── Dockerfile               # Multi-stage Docker build
-└── docker-compose.yml       # Docker Compose configuration
+└── Dockerfile               # Multi-stage Docker build
 ```
 
 ## Environment Variables
@@ -372,7 +348,7 @@ curl http://localhost:8080/health
 ```
 
 This endpoint is used by:
-- Docker Compose health checks
+- Docker health checks
 - Container orchestration monitoring
 - Load balancers and reverse proxies
 
@@ -428,32 +404,11 @@ go vet ./...
 
 ## Development Tips
 
-### Hot Reload
-
-For faster development, use a tool like [air](https://github.com/cosmtrek/air):
-
-```bash
-# Install air
-go install github.com/cosmtrek/air@latest
-
-# Run with hot reload
-air
-```
-
-### Debug Logging
-
-Enable verbose logging for development:
-
-```go
-// In your .env.dev
-LOG_LEVEL=debug
-```
-
 ### Testing Slash Commands
 
-After deploying slash commands, they may take up to an hour to propagate globally. For faster testing:
-- Use guild-specific commands (instant updates)
-- Test in your development server first
+After deploying slash commands, they may take up to an hour to propagate globally in production mode. For faster testing:
+- Use development mode (`.env.dev`) for instant command registration to your test server
+- Test in your development server first before deploying to production
 
 ## Troubleshooting
 
