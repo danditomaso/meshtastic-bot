@@ -29,6 +29,8 @@ faq:
     url: "https://meshtastic.org/docs/software/android/user/units-and-locale"
   - name: "Device Display Units"
     url: "https://meshtastic.org/docs/configuration/radio/display#preferred-display-units"
+  - name: "Hop Basics"
+    url: "https://www.youtube.com/watch?v=6Ldplksm-Bs&t=1s"
 
 software_modules:
   - name: "Ambient Lighting"
